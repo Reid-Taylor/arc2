@@ -1,0 +1,11 @@
+[project]
+name = "arc2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "lightning>=2.6.5",
+    "polars>=1.42.1",
+    "json2vec @ git+https://github.com/json2vec/json2vec.git@dev/categorical-unit-circle",
+]
