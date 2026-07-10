@@ -43,7 +43,7 @@ model = j2v.Model.from_tree(
     embed=True,
     optimizer=lambda module: torch.optim.AdamW(module.parameters(), lr=1e-3),
     examples=j2v.Branch(
-        length=5,  # up to 5 (input, output) demonstration pairs per problem_set
+        length=6,  # up to 5 (input, output) demonstration pairs per problem_set
         grids=j2v.Branch(
             length=2,  # slot 0 = input, slot 1 = output (set by pair_examples)
             # Dynamic masking scoped to outputs only:
