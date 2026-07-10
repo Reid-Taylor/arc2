@@ -8,8 +8,8 @@ from lightning.pytorch.loggers import WandbLogger
 
 import json2vec as j2v
 
-training_records = pl.read_ndjson("/data/arc_problem_sets_training.jsonl")
-evaluation_records = pl.read_ndjson("/data/arc_problem_sets_evaluation.jsonl")
+training_records = pl.read_ndjson("data/arc_problem_sets_training.jsonl")
+evaluation_records = pl.read_ndjson("data/arc_problem_sets_evaluation.jsonl")
 
 @j2v.preprocess
 def pair_examples(record: dict) -> j2v.Observation:
