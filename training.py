@@ -4,7 +4,6 @@ import lightning.pytorch as lit
 import polars as pl
 import torch
 from lightning.pytorch.callbacks import EarlyStopping
-from lightning.pytorch.loggers import WandbLogger
 
 import json2vec as j2v
 
@@ -30,6 +29,7 @@ def trainer(logger):
         min_epochs=100,
         logger=logger,
         precision="bf16-mixed",
+        accelerator="gpu"
     )
 
 
@@ -72,11 +72,10 @@ datamodule = j2v.PolarsDataModule(
     num_workers=0,
     chunk_batch_size=32,
 )
-logger = WandbLogger(project="fbc", name=datetime.now().strftime("%Y-%m-%d %H:%M"))
 
 model.update(dropout=0.05)
 
-trainer = trainer(logger)
+trainer = trainer()
 
 trainer.fit(model=model, datamodule=datamodule)
 trainer.test(model=model, datamodule=datamodule)
