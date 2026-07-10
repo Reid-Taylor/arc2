@@ -51,12 +51,13 @@ model = j2v.Model.from_tree(
             #   fixed slot (index 1 = output). Every other slot is ineligible,
             #   so inputs are never masked. rate=0.4 → each output grid is
             #   hidden with probability 0.4 (independently per example pair).
-            mask=j2v.Mask(rate=0.4, window=1, branch=True),
+            mask=j2v.Mask(rate=0.2, window=1, branch=True),
             pixels=j2v.Branch(
                 length=900,  # 30x30 ARC grid flattened
-                cell=j2v.Category(
+                cell=j2v.Entity(
                     query="[*].examples[*].grids[*].pixels[*]",
-                    size=12,
+                    # size=12,
+                    p_mask=0.075
                 ),
             ),
         ),
