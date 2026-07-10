@@ -72,7 +72,7 @@ datamodule = j2v.PolarsDataModule(
     test=evaluation_records,
     preprocessor=pair_examples,
     num_workers=0,
-    chunk_batch_size=32,
+    chunk_batch_size=64,
 )
 logger = WandbLogger(project="fbc", name=datetime.now().strftime("%Y-%m-%d %H:%M"))
 
