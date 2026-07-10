@@ -1,6 +1,6 @@
 # GCP parameters
-GCP_ZONE ?= us-central1-f
-VM_INSTANCE_NAME ?= instance-101
+GCP_ZONE ?= asia-south1-c
+VM_INSTANCE_NAME ?= instance-20260710-214902
 MACHINE_TYPE ?= e2-highmem-8
 DISK_SIZE ?= 120GB
 
