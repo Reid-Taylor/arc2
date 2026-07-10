@@ -57,7 +57,7 @@ model = j2v.Model.from_tree(
                 cell=j2v.Entity(
                     query="[*].examples[*].grids[*].pixels[*]",
                     # size=12,
-                    p_mask=0.075
+                    p_mask=0.1
                 ),
             ),
         ),
