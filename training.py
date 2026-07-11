@@ -42,7 +42,7 @@ model = j2v.Model.from_tree(
     d_model=512,
     n_layers=8,
     n_heads=8,
-    batch_size=16,
+    batch_size=4,
     embed=True,
     optimizer=lambda module: torch.optim.AdamW(module.parameters(), lr=1e-3),
     examples=j2v.Branch(
@@ -75,7 +75,7 @@ datamodule = j2v.PolarsDataModule(
     test=evaluation_records,
     preprocessor=pair_examples,
     num_workers=0,
-    chunk_batch_size=64,
+    chunk_batch_size=8,
 )
 logger = WandbLogger(project="fbc", name=datetime.now().strftime("%Y-%m-%d %H:%M"))
 
