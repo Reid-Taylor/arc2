@@ -35,8 +35,6 @@ pixel_address = next(
     for address, request in model.schema.active_requests.items()
     if request.type == "entity"
 )
-# schema.shapes for the cell entity is (root_length, examples, grids, pixels)
-# because the schema path includes the implicit root branch (length=1).
 pixel_shape = model.schema.shapes[pixel_address]
 *_, examples_length, grids_length, pixels_length = pixel_shape
 n_context = math.prod(pixel_shape)
@@ -47,13 +45,8 @@ print(
 records = evaluation_records.to_dicts()
 print(f"records: {len(records)}")
 
-# Match training-time masking semantics: exactly one grid is masked per
-# problem_set — the first example's output slot — and the model predicts
-# every pixel of that one grid.
 target_example_idx = 0
 
-# Flat index window covering the 900 pixels of grid slot 1 (output)
-# at the target example. Layout is contiguous: examples · grids · pixels.
 grid_start = (target_example_idx * grids_length + 1) * pixels_length
 grid_stop = grid_start + pixels_length
 
@@ -73,8 +66,6 @@ for start in tqdm(
 ):
     batch = eligible[start:start + BATCH_SIZE]
 
-    # Encode with mask=False so we can selectively hide only the pixels
-    # of the chosen output grid — everything else stays observed.
     inputs = model.encode(
         batch=batch,
         preprocess=pair_examples,
@@ -100,7 +91,7 @@ for start in tqdm(
         predictions = model.forward(inputs, strata=Strata.test)
 
     pixel_prediction = next(p for p in predictions if p.address == pixel_address)
-    state_pred = pixel_prediction.payload[TensorKey.state].argmax(dim=-1)  # (B, n_context)
+    state_pred = pixel_prediction.payload[TensorKey.state].argmax(dim=-1)
     content_pred = pixel_prediction.payload[TensorKey.content].argmax(dim=-1)
 
     true_state = cell.targets[TensorKey.state].reshape(B, n_context)
