@@ -33,10 +33,13 @@ pixel_address = next(
     for address, request in model.schema.active_requests.items()
     if request.type == "entity"
 )
-examples_length, grids_length, pixels_length = model.schema.shapes[pixel_address]
+# schema.shapes includes the trailing entity size (usually 1). The leading
+# three dims are the branch lengths that pair_examples fills in.
+examples_length, grids_length, pixels_length, *entity_tail = model.schema.shapes[pixel_address]
 print(
     f"pixel address: {pixel_address} "
-    f"(examples={examples_length}, grids={grids_length}, pixels={pixels_length})"
+    f"(examples={examples_length}, grids={grids_length}, pixels={pixels_length}, "
+    f"entity_tail={tuple(entity_tail)})"
 )
 
 records = evaluation_records.to_dicts()
@@ -90,11 +93,11 @@ for target_example_idx in range(examples_length):
         true_state = cell.targets[TensorKey.state]
         true_content = cell.targets[TensorKey.content]
 
-        grid = (slice(None), target_example_idx, 1, slice(None))
+        grid = (slice(None), target_example_idx, 1)
         pixel_correct = (
             state_pred[grid].eq(true_state[grid])
             & content_pred[grid].eq(true_content[grid])
-        )  # shape: (batch, 900)
+        ).reshape(len(batch), -1)  # (batch, 900 * entity_tail)
 
         total_pixels_correct += int(pixel_correct.sum().item())
         total_pixels_predicted += pixel_correct.numel()
