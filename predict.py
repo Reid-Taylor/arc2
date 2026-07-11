@@ -47,75 +47,77 @@ print(
 records = evaluation_records.to_dicts()
 print(f"records: {len(records)}")
 
+# Match training-time masking semantics: exactly one grid is masked per
+# problem_set — the first example's output slot — and the model predicts
+# every pixel of that one grid.
+target_example_idx = 0
+
+# Flat index window covering the 900 pixels of grid slot 1 (output)
+# at the target example. Layout is contiguous: examples · grids · pixels.
+grid_start = (target_example_idx * grids_length + 1) * pixels_length
+grid_stop = grid_start + pixels_length
+
 total_pixels_correct = 0
 total_pixels_predicted = 0
 total_grids_correct = 0
 total_grids = 0
 
-for target_example_idx in range(examples_length):
-    eligible = [
-        r for r in records
-        if len(r["problem_set"]["inputs"]) > target_example_idx
-    ]
-    if not eligible:
+eligible = [
+    r for r in records
+    if len(r["problem_set"]["inputs"]) > target_example_idx
+]
+
+for start in tqdm(
+    range(0, len(eligible), BATCH_SIZE),
+    desc=f"predicting output 0 ({len(eligible)} records)",
+):
+    batch = eligible[start:start + BATCH_SIZE]
+
+    # Encode with mask=False so we can selectively hide only the pixels
+    # of the chosen output grid — everything else stays observed.
+    inputs = model.encode(
+        batch=batch,
+        preprocess=pair_examples,
+        strata=Strata.test,
+        mask=False,
+    )
+    inputs = inputs.to(model.device)
+    cell = inputs[pixel_address]
+
+    B = cell.state.shape[0]
+    state_flat = cell.state.reshape(B, n_context)
+    selected_flat = torch.zeros_like(state_flat, dtype=torch.bool)
+    selected_flat[:, grid_start:grid_stop] = state_flat[:, grid_start:grid_stop].eq(
+        Tokens.valued.value
+    )
+    if not selected_flat.any():
         continue
+    selected = selected_flat.reshape(cell.state.shape)
 
-    # Flat index window covering the 900 pixels of grid slot 1 (output)
-    # at the target example. Layout is contiguous: examples · grids · pixels.
-    grid_start = (target_example_idx * grids_length + 1) * pixels_length
-    grid_stop = grid_start + pixels_length
+    cell.hide(selected, cache_targets=True, trainable=True)
 
-    for start in tqdm(
-        range(0, len(eligible), BATCH_SIZE),
-        desc=f"example slot {target_example_idx} ({len(eligible)} records)",
-    ):
-        batch = eligible[start:start + BATCH_SIZE]
+    with torch.inference_mode():
+        predictions = model.forward(inputs, strata=Strata.test)
 
-        # Encode with mask=False so we can selectively hide only the pixels
-        # of the chosen output grid — everything else stays observed.
-        inputs = model.encode(
-            batch=batch,
-            preprocess=pair_examples,
-            strata=Strata.test,
-            mask=False,
-        )
-        inputs = inputs.to(model.device)
-        cell = inputs[pixel_address]
+    pixel_prediction = next(p for p in predictions if p.address == pixel_address)
+    state_pred = pixel_prediction.payload[TensorKey.state].argmax(dim=-1)  # (B, n_context)
+    content_pred = pixel_prediction.payload[TensorKey.content].argmax(dim=-1)
 
-        B = cell.state.shape[0]
-        state_flat = cell.state.reshape(B, n_context)
-        selected_flat = torch.zeros_like(state_flat, dtype=torch.bool)
-        selected_flat[:, grid_start:grid_stop] = state_flat[:, grid_start:grid_stop].eq(
-            Tokens.valued.value
-        )
-        if not selected_flat.any():
-            continue
-        selected = selected_flat.reshape(cell.state.shape)
+    true_state = cell.targets[TensorKey.state].reshape(B, n_context)
+    true_content = cell.targets[TensorKey.content].reshape(B, n_context)
 
-        cell.hide(selected, cache_targets=True, trainable=True)
+    window = slice(grid_start, grid_stop)
+    pixel_correct = (
+        state_pred[:, window].eq(true_state[:, window])
+        & content_pred[:, window].eq(true_content[:, window])
+    )  # (B, pixels_length)
 
-        with torch.inference_mode():
-            predictions = model.forward(inputs, strata=Strata.test)
+    total_pixels_correct += int(pixel_correct.sum().item())
+    total_pixels_predicted += pixel_correct.numel()
 
-        pixel_prediction = next(p for p in predictions if p.address == pixel_address)
-        state_pred = pixel_prediction.payload[TensorKey.state].argmax(dim=-1)  # (B, n_context)
-        content_pred = pixel_prediction.payload[TensorKey.content].argmax(dim=-1)
-
-        true_state = cell.targets[TensorKey.state].reshape(B, n_context)
-        true_content = cell.targets[TensorKey.content].reshape(B, n_context)
-
-        window = slice(grid_start, grid_stop)
-        pixel_correct = (
-            state_pred[:, window].eq(true_state[:, window])
-            & content_pred[:, window].eq(true_content[:, window])
-        )  # (B, pixels_length)
-
-        total_pixels_correct += int(pixel_correct.sum().item())
-        total_pixels_predicted += pixel_correct.numel()
-
-        grid_correct = pixel_correct.all(dim=-1)  # shape: (B,)
-        total_grids_correct += int(grid_correct.sum().item())
-        total_grids += grid_correct.numel()
+    grid_correct = pixel_correct.all(dim=-1)  # shape: (B,)
+    total_grids_correct += int(grid_correct.sum().item())
+    total_grids += grid_correct.numel()
 
 print()
 print(f"grids evaluated:  {total_grids}")
