@@ -1,7 +1,7 @@
 # GCP parameters
-GCP_ZONE ?= asia-south1-c
-VM_INSTANCE_NAME ?= instance-20260710-214902
-MACHINE_TYPE ?= e2-highmem-8
+GCP_ZONE ?= us-central1-b
+VM_INSTANCE_NAME ?= instance-101
+MACHINE_TYPE ?= e2-highmem-16
 DISK_SIZE ?= 120GB
 
 # Training parameters
@@ -31,7 +31,12 @@ gcp-ssh:
 	gcloud compute ssh $(VM_INSTANCE_NAME) --zone=$(GCP_ZONE)
 
 gcp-copy:
-	gcloud compute scp --zone=$(GCP_ZONE) --recurse $(VM_INSTANCE_NAME):/home/reidtaylor/ARC/ .
+	gcloud compute scp --zone=$(GCP_ZONE) --recurse $(VM_INSTANCE_NAME):/home/reidtaylor/arc2/data .gcp_dump
+	gcloud compute scp --zone=$(GCP_ZONE) --recurse $(VM_INSTANCE_NAME):/home/reidtaylor/arc2/fbc .gcp_dump
+	gcloud compute scp --zone=$(GCP_ZONE) --recurse $(VM_INSTANCE_NAME):/home/reidtaylor/arc2/wandb .gcp_dump
+
+gcp-send:
+	gcloud compute scp --zone=$(GCP_ZONE) --recurse .gcp_dump $(VM_INSTANCE_NAME):/home/reidtaylor/arc2
 
 train-model:
 	@echo "Training the ARC Encoder..."

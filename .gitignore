@@ -5,9 +5,11 @@ build/
 dist/
 wheels/
 *.egg-info
+.gcp_dump
 
 # Virtual environments
 .venv
 
 *.sh
 *.txt
+*.ipynb
