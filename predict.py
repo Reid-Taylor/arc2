@@ -28,7 +28,11 @@ model.eval()
 if torch.cuda.is_available():
     model.cuda()
 
-pixel_address = next(iter(model.schema.target))
+pixel_address = next(
+    address
+    for address, request in model.schema.active_requests.items()
+    if request.type == "entity"
+)
 examples_length, grids_length, pixels_length = model.schema.shapes[pixel_address]
 print(
     f"pixel address: {pixel_address} "
