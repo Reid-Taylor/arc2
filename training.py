@@ -37,9 +37,9 @@ def trainer(logger):
 model = j2v.Model.from_tree(
     name="problem_set",
     d_model=512,
-    n_layers=16,
+    n_layers=8,
     n_heads=8,
-    batch_size=64,
+    batch_size=16,
     embed=True,
     optimizer=lambda module: torch.optim.AdamW(module.parameters(), lr=1e-3),
     examples=j2v.Branch(
