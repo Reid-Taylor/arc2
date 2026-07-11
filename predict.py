@@ -22,12 +22,9 @@ def pair_examples(record: dict) -> j2v.Observation:
         ],
     })
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"device: {device}")
 
-model = j2v.Model.load_from_checkpoint(CHECKPOINT, map_location=device)
+model = j2v.Model.load_from_checkpoint(CHECKPOINT, weights_only=False)
 model.eval()
-model.to(device)
 
 pixel_address = next(iter(model.schema.target))
 examples_length, grids_length, pixels_length = model.schema.shapes[pixel_address]
@@ -66,7 +63,6 @@ for target_example_idx in range(examples_length):
             strata=Strata.test,
             mask=False,
         )
-        inputs = inputs.to(device)
         cell = inputs[pixel_address]
 
         selected = torch.zeros_like(cell.state, dtype=torch.bool)
