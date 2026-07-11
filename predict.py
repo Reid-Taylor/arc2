@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import polars as pl
 import torch
 from tqdm import tqdm
@@ -33,13 +35,13 @@ pixel_address = next(
     for address, request in model.schema.active_requests.items()
     if request.type == "entity"
 )
-# schema.shapes includes the trailing entity size (usually 1). The leading
-# three dims are the branch lengths that pair_examples fills in.
-examples_length, grids_length, pixels_length, *entity_tail = model.schema.shapes[pixel_address]
+# schema.shapes for the cell entity is (root_length, examples, grids, pixels)
+# because the schema path includes the implicit root branch (length=1).
+pixel_shape = model.schema.shapes[pixel_address]
+*_, examples_length, grids_length, pixels_length = pixel_shape
+n_context = math.prod(pixel_shape)
 print(
-    f"pixel address: {pixel_address} "
-    f"(examples={examples_length}, grids={grids_length}, pixels={pixels_length}, "
-    f"entity_tail={tuple(entity_tail)})"
+    f"pixel address: {pixel_address}  shape={pixel_shape}  n_context={n_context}"
 )
 
 records = evaluation_records.to_dicts()
@@ -58,6 +60,11 @@ for target_example_idx in range(examples_length):
     if not eligible:
         continue
 
+    # Flat index window covering the 900 pixels of grid slot 1 (output)
+    # at the target example. Layout is contiguous: examples · grids · pixels.
+    grid_start = (target_example_idx * grids_length + 1) * pixels_length
+    grid_stop = grid_start + pixels_length
+
     for start in tqdm(
         range(0, len(eligible), BATCH_SIZE),
         desc=f"example slot {target_example_idx} ({len(eligible)} records)",
@@ -75,11 +82,15 @@ for target_example_idx in range(examples_length):
         inputs = inputs.to(model.device)
         cell = inputs[pixel_address]
 
-        selected = torch.zeros_like(cell.state, dtype=torch.bool)
-        selected[:, target_example_idx, 1, :] = True
-        selected = selected & cell.state.eq(Tokens.valued.value)
-        if not selected.any():
+        B = cell.state.shape[0]
+        state_flat = cell.state.reshape(B, n_context)
+        selected_flat = torch.zeros_like(state_flat, dtype=torch.bool)
+        selected_flat[:, grid_start:grid_stop] = state_flat[:, grid_start:grid_stop].eq(
+            Tokens.valued.value
+        )
+        if not selected_flat.any():
             continue
+        selected = selected_flat.reshape(cell.state.shape)
 
         cell.hide(selected, cache_targets=True, trainable=True)
 
@@ -87,22 +98,22 @@ for target_example_idx in range(examples_length):
             predictions = model.forward(inputs, strata=Strata.test)
 
         pixel_prediction = next(p for p in predictions if p.address == pixel_address)
-        state_pred = pixel_prediction.payload[TensorKey.state].argmax(dim=-1)
+        state_pred = pixel_prediction.payload[TensorKey.state].argmax(dim=-1)  # (B, n_context)
         content_pred = pixel_prediction.payload[TensorKey.content].argmax(dim=-1)
 
-        true_state = cell.targets[TensorKey.state]
-        true_content = cell.targets[TensorKey.content]
+        true_state = cell.targets[TensorKey.state].reshape(B, n_context)
+        true_content = cell.targets[TensorKey.content].reshape(B, n_context)
 
-        grid = (slice(None), target_example_idx, 1)
+        window = slice(grid_start, grid_stop)
         pixel_correct = (
-            state_pred[grid].eq(true_state[grid])
-            & content_pred[grid].eq(true_content[grid])
-        ).reshape(len(batch), -1)  # (batch, 900 * entity_tail)
+            state_pred[:, window].eq(true_state[:, window])
+            & content_pred[:, window].eq(true_content[:, window])
+        )  # (B, pixels_length)
 
         total_pixels_correct += int(pixel_correct.sum().item())
         total_pixels_predicted += pixel_correct.numel()
 
-        grid_correct = pixel_correct.all(dim=-1)  # shape: (batch,)
+        grid_correct = pixel_correct.all(dim=-1)  # shape: (B,)
         total_grids_correct += int(grid_correct.sum().item())
         total_grids += grid_correct.numel()
 
