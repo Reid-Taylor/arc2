@@ -1,3 +1,6 @@
+import os 
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 from datetime import datetime
 
 import lightning.pytorch as lit
