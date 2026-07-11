@@ -57,9 +57,9 @@ model = j2v.Model.from_tree(
             mask=j2v.Mask(rate=0.2, window=1, branch=True),
             pixels=j2v.Branch(
                 length=900,  # 30x30 ARC grid flattened
-                cell=j2v.Entity(
+                cell=j2v.Category(
                     query="[*].examples[*].grids[*].pixels[*]",
-                    # size=12,
+                    size=12,
                     p_mask=0.1
                 ),
             ),
